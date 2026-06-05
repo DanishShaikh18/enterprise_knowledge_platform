@@ -15,7 +15,7 @@ from langchain_community.vectorstores import FAISS
 # Configuration Constants
 DATA_DIR = "./data"
 VECTOR_STORE_DIR = "./vector_store"
-EMBEDDING_MODEL = "models/text-embedding-004"
+EMBEDDING_MODEL = "gemini-embedding-001"
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
@@ -121,7 +121,9 @@ def create_and_save_vector_store(chunks: List[Document], logger: logging.Logger)
         # Save local will overwrite existing index/pkl files in the directory cleanly
         if os.path.exists(VECTOR_STORE_DIR):
             shutil.rmtree(VECTOR_STORE_DIR)
-        
+
+        vector_store.save_local(VECTOR_STORE_DIR)
+
         logger.info("Vector store creation and persistence successful.")
     except Exception as e:
         logger.error(f"Failed to create or save vector store: {e}", exc_info=True)
