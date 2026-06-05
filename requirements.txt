@@ -1,0 +1,15 @@
+# Core RAG, Parsing, and Graph Dependencies
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-openai>=0.0.2
+langgraph>=0.0.20
+faiss-cpu>=1.7.4
+pypdf>=4.0.0
+tiktoken>=0.5.2
+
+# Frontend
+streamlit>=1.30.0
+
+# General Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
