@@ -19,6 +19,7 @@ vector_store/*
 .streamlit/
 .DS_Store
 
+
 .env
 .env.example
 
@@ -26,3 +27,4 @@ venv/
 ENV/
 
 .vscode
+.vscode/
