@@ -24,3 +24,5 @@ vector_store/*
 
 venv/
 ENV/
+
+.vscode
