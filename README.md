@@ -1,8 +1,8 @@
-# Document Question Answering System
+# Multi-Agent RAG System
 
 ## Overview
 
-This project is a document question answering system built using LangGraph, Gemini, and FAISS.
+This project is a multo agent RAG system built using LangGraph, Gemini, and FAISS.
 
 The system processes PDF documents, creates vector embeddings, retrieves relevant content using semantic search, and generates responses grounded in the retrieved document context. Responses include source references to the supporting documents and pages.
 
