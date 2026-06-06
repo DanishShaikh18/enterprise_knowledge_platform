@@ -119,3 +119,27 @@ class GraphState(TypedDict, total=False):
 
     Acts as a circuit breaker for the validation loop.
     """
+
+    average_match_score: Optional[float]
+    """
+    Average FAISS distance across retrieved chunks.
+    Used for retrieval quality assessment.
+    """
+
+    retrieved_document_count: int
+    """
+    Number of retrieved chunks returned by FAISS.
+    Used for confidence estimation.
+    """
+
+    confidence_score: Optional[float]
+    """
+    Final confidence score produced by Validation Agent.
+    Range: 0.0 to 1.0
+    """
+
+    retrieval_k: int
+    """
+    Number of chunks Retrieval Agent should fetch.
+    Determined by Research Agent based on query intent.
+    """

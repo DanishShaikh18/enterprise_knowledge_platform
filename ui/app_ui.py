@@ -30,9 +30,6 @@ def initialize_session_state() -> None:
 
 
 def render_sources(sources) -> None:
-    """
-    Renders retrieved source metadata.
-    """
 
     if not sources:
         return
@@ -41,15 +38,13 @@ def render_sources(sources) -> None:
 
     for source in sources:
 
-        document_name = getattr(
-            source,
-            "document_name",
+        document_name = source.get(
+            "source",
             "Unknown"
         )
 
-        page_number = getattr(
-            source,
-            "page_number",
+        page_number = source.get(
+            "page",
             "Unknown"
         )
 

@@ -1,182 +1,207 @@
 import logging
+import re
 
-from core.llm import get_llm
-from prompts.validation_prompt import VALIDATION_SYSTEM_PROMPT
-from schemas.agent_outputs import ValidationAgentOutput
 from schemas.graph_state import GraphState
 
 
 logger = logging.getLogger(__name__)
 
-MAX_REGENERATION_ATTEMPTS = 3
+
+MIN_ANSWER_LENGTH = 30
+MIN_OVERLAP_RATIO = 0.20
+
+STOPWORDS = {
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "to",
+    "of",
+    "in",
+    "for",
+    "and",
+    "or",
+    "that",
+    "this",
+    "with",
+    "on",
+    "at",
+    "by",
+    "from",
+}
 
 
-def validation_agent(state: GraphState) -> dict:
-    """
-    LangGraph Validation Agent.
+def extract_keywords(text: str) -> set[str]:
 
-    Responsibilities:
-    - Verify answer grounding.
-    - Detect hallucinations.
-    - Detect unsupported claims.
-    - Determine whether regeneration is required.
-    - Prevent infinite regeneration loops.
-
-    This agent does NOT:
-    - Generate answers.
-    - Retrieve documents.
-    - Modify retrieved context.
-
-    Returns:
-        State updates containing:
-        - validation_passed
-        - validation_feedback
-        - requires_regeneration
-        - regeneration_count
-    """
-
-    question = state.get("question", "").strip()
-
-    generated_answer = state.get(
-        "generated_answer",
-        ""
+    words = re.findall(
+        r"\b[a-zA-Z]{3,}\b",
+        text.lower()
     )
+
+    return {
+        word
+        for word in words
+        if word not in STOPWORDS
+    }
+
+
+def validation_agent(
+    state: GraphState
+) -> dict:
 
     retrieved_context = state.get(
         "retrieved_context",
         []
     )
 
-    regeneration_count = state.get(
-        "regeneration_count",
+    retrieval_sources = state.get(
+        "retrieval_sources",
+        []
+    )
+
+    answer = state.get(
+        "generated_answer",
+        ""
+    )
+
+    best_score = state.get(
+        "best_match_score"
+    )
+
+    average_score = state.get(
+        "average_match_score"
+    )
+
+    retrieved_count = state.get(
+        "retrieved_document_count",
         0
     )
 
-    if not generated_answer:
+    # ----------------------------------
+    # Hard Fail Checks
+    # ----------------------------------
 
-        logger.warning(
-            "Validation Agent received empty answer."
-        )
+    if not retrieved_context:
 
         return {
             "validation_passed": False,
-            "validation_feedback": (
-                "No answer was generated."
-            ),
-            "requires_regeneration": True,
-            "regeneration_count": regeneration_count + 1
-        }
-
-    try:
-
-        logger.info(
-            "Running answer validation."
-        )
-
-        llm = get_llm(
-            temperature=0
-        ).with_structured_output(
-            ValidationAgentOutput
-        )
-
-        context = "\n\n".join(
-            retrieved_context
-        )
-
-        validation_input = f"""
-Question:
-{question}
-
-Retrieved Context:
-{context}
-
-Generated Answer:
-{generated_answer}
-"""
-
-        result: ValidationAgentOutput = llm.invoke(
-            [
-                (
-                    "system",
-                    VALIDATION_SYSTEM_PROMPT
-                ),
-                (
-                    "human",
-                    validation_input
-                )
-            ]
-        )
-
-        # --------------------------------------------------
-        # Retry Limit Protection
-        # --------------------------------------------------
-
-        if (
-            result.requires_regeneration
-            and regeneration_count >= MAX_REGENERATION_ATTEMPTS
-        ):
-
-            logger.warning(
-                "Maximum regeneration attempts reached."
-            )
-
-            return {
-                "validation_passed": False,
-                "validation_feedback": (
-                    "Maximum regeneration attempts reached."
-                ),
-                "requires_regeneration": False,
-                "regeneration_count": regeneration_count
-            }
-
-        # --------------------------------------------------
-        # Validation Failed
-        # --------------------------------------------------
-
-        if result.requires_regeneration:
-
-            logger.info(
-                "Validation failed. Regeneration required."
-            )
-
-            return {
-                "validation_passed": False,
-                "validation_feedback":
-                    result.validation_feedback,
-                "requires_regeneration": True,
-                "regeneration_count":
-                    regeneration_count + 1
-            }
-
-        # --------------------------------------------------
-        # Validation Passed
-        # --------------------------------------------------
-
-        logger.info(
-            "Validation successful."
-        )
-
-        return {
-            "validation_passed": True,
-            "validation_feedback": None,
             "requires_regeneration": False,
-            "regeneration_count":
-                regeneration_count
+            "validation_feedback":
+                "No supporting context retrieved.",
+            "confidence_score": 0.0,
         }
 
-    except Exception as exc:
-
-        logger.exception(
-            "Validation Agent failed: %s",
-            exc
-        )
+    if not retrieval_sources:
 
         return {
             "validation_passed": False,
-            "validation_feedback": (
-                "Validation process failed."
-            ),
-            "requires_regeneration": True,
-            "regeneration_count":
-                regeneration_count + 1
+            "requires_regeneration": False,
+            "validation_feedback":
+                "No source attribution available.",
+            "confidence_score": 0.0,
         }
+
+    if not answer:
+
+        return {
+            "validation_passed": False,
+            "requires_regeneration": True,
+            "validation_feedback":
+                "Answer generation failed.",
+            "confidence_score": 0.0,
+        }
+
+    if len(answer) < MIN_ANSWER_LENGTH:
+
+        return {
+            "validation_passed": False,
+            "requires_regeneration": True,
+            "validation_feedback":
+                "Generated answer too short.",
+            "confidence_score": 0.0,
+        }
+
+    # ----------------------------------
+    # Keyword Overlap
+    # ----------------------------------
+
+    answer_keywords = extract_keywords(
+        answer
+    )
+
+    context_keywords = extract_keywords(
+        " ".join(retrieved_context)
+    )
+
+    if answer_keywords:
+
+        overlap_ratio = (
+            len(
+                answer_keywords.intersection(
+                    context_keywords
+                )
+            )
+            /
+            len(answer_keywords)
+        )
+
+    else:
+
+        overlap_ratio = 0.0
+
+    # ----------------------------------
+    # Confidence Calculation
+    # ----------------------------------
+
+    confidence = 0.0
+
+    # Overlap contribution
+    confidence += overlap_ratio * 0.5
+
+    # Retrieval score contribution
+    if best_score is not None:
+
+        retrieval_confidence = max(
+            0.0,
+            1.0 - min(best_score, 1.0)
+        )
+
+        confidence += retrieval_confidence * 0.3
+
+    # Evidence contribution
+    confidence += min(
+        retrieved_count / 5,
+        1.0
+    ) * 0.2
+
+    confidence = round(
+        min(confidence, 1.0),
+        2
+    )
+
+    # ----------------------------------
+    # Pass / Fail
+    # ----------------------------------
+
+    validation_passed = (
+        overlap_ratio >= MIN_OVERLAP_RATIO
+    )
+
+    return {
+        "validation_passed":
+            validation_passed,
+
+        "requires_regeneration":
+            False,
+
+        "validation_feedback":
+            None
+            if validation_passed
+            else "Low answer-context overlap detected.",
+
+        "confidence_score":
+            confidence,
+    }
