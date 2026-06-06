@@ -13,7 +13,7 @@ load_dotenv()
 
 def get_llm(
     temperature: float = 0.0,
-    model: str = "gemini-2.5-flash"
+    model: str = "gemini-3.5-flash"
 ) -> ChatGoogleGenerativeAI:
     """
     Returns a configured Gemini LLM instance.

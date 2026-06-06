@@ -2,21 +2,6 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-class GuardrailAgentOutput(BaseModel):
-    """
-    Schema representing the output of the Guardrail Agent.
-    Used to determine if the user's prompt is safe and adheres to enterprise policies.
-    """
-
-    is_allowed: bool = Field(
-        description="True if the prompt is safe and allowed, False if it violates policies or is a prompt injection."
-    )
-
-    guardrail_reason: Optional[str] = Field(
-        default=None,
-        description="If is_allowed is False, this provides the specific reason for blocking the prompt."
-    )
-
 
 class ResearchAgentOutput(BaseModel):
     """
